@@ -1,0 +1,158 @@
+# 林间拾忆 · 未完待续
+
+一款步行叙事小游戏：你独自走在林间小路上，路边散落着象征人生经历的物品。拾起它们，读一段回忆（未来可配 AI 生成的视频）。走到小路的尽头——未完待续。
+
+纯静态、零依赖：一个 HTML 游戏，双击就能玩，改一处配置文件就能加新内容。
+
+## 运行
+
+直接双击 `index.html` 即可（无需服务器）。也可以起个本地服务：
+
+```bash
+python3 -m http.server 8000
+# 打开 http://localhost:8000
+```
+
+## 操作
+
+| 操作 | 效果 |
+|---|---|
+| 点击小路任意位置 | 走到点击的位置（向前、往回走都可以，到达后停下） |
+| 点击路上的物品标识 | 直接触发/回看这段回忆（往回走也能点） |
+| 按住 `空格` | 一直向前走 |
+| 拾起物品后点击卡片 / 空格 | 跳过打字机文字 |
+| 点击回忆弹层的遮罩 | 关闭回忆，回到路上 |
+| `继续前行 ▸` 按钮 | 关闭回忆，继续走 |
+| `Esc` | 暂停 / 继续（在故事菜单/游戏内界面时先关闭它们） |
+| 右上角 `👤` 图标 | 游戏过程中随时切换其他故事 / 管理我的游戏 |
+| 右上角按钮 | 声音开关 |
+| 编辑故事 → `🎵 背景音乐` | 给**这个故事**配专属背景音乐（≤20MB，存本机）；不配则用内置抒情 BGM |
+| 我的游戏 → `🔗 分享` | 生成分享链接（故事文本压缩进链接，照片/视频不包含） |
+| 我的游戏 → `📤 导出` / `📥 导入` | JSON 备份 / 恢复故事（含照片，视频不包含） |
+
+> 每次进入一个故事都会**从头开始**（不恢复上次进度）；最后一段回忆看完后会**自动走完剩余的小段路**并触发结尾。
+> **每个故事有自己的角色（👦 男 / 👧 女）**：编辑故事时设置，游玩时自动用该故事的角色；内置旅程的角色在开始页切换。
+> 开始页可切换**界面语言（中文 / EN，默认中文）**，设置会记住。内置故事在英文界面下会显示英文文本；你自己/AI 生成的故事是用户内容，保持原语言。
+
+## make your life story…（把游戏变成你自己的）
+
+走完一遍（或在开始页点 `make your life story…`），就可以用 AI 把**你真实的人生经历**生成一段专属的步行叙事。创作器内置**两种创作模式，随时可切换**：
+
+| 模式 | 适合谁 | 需要配置？ |
+|---|---|---|
+| ✍️ **手动创作** | 所有用户（默认，零门槛） | 不需要任何配置，直接写 |
+| ✨ **智能生成** | 想用 AI 帮写的用户 | 需要 GLM API Key（免费领取） |
+
+- **默认智能匹配**：检测到你配过 API Key 就用智能生成，否则默认手动创作——非技术用户打开就能写，完全不会遇到"API Key"这种词；
+- 收集页和编辑页顶部都有模式开关；没配 Key 时会有大白话提示和免费获取指引，也可以随时切回手动；
+- 智能模式下编辑页才有「🔄 重新生成 / ← 修改素材」。
+
+流程：
+
+1. **选择模式**：手动创作 → 直接开写；智能生成 → 填素材；
+2. **收集素材**：**一个输入框**，按成长顺序（小时候 → 现在）讲就行，支持打字，也支持 🎙 语音输入（浏览器语音识别，Chrome 可用）；不需要分门别类，AI 会自己整理总结，生成的故事**按年龄从小到大排列**；
+3. **AI 生成**（智谱 GLM，`glm-4-flash` 免费）：在「🤖 AI 设置」里填入你在 [open.bigmodel.cn](https://open.bigmodel.cn) 申请的 API Key（Key 只存在本机浏览器 localStorage，不会上传），点「✨ AI 生成我的故事」；
+4. **修改编辑**：生成的每段回忆都可以改标题、emoji、颜色、文字，可上下排序、增删段落，还能为每段回忆**上传照片 / ≤15MB 小视频**（照片自动压缩到 1280px 以内，视频原样存储；「AI 配图」入口已留位，后续接入）；
+5. **一键生成并游玩**：保存为新的世界并直接进入游戏；「保存草稿」则只存档；
+6. **反复修改 / 再生成**：开始页 →「我的游戏」可对任意已保存世界**游玩 / 编辑 / 删除**；编辑页可「🔄 重新生成」「＋ 添加一段回忆」「← 修改素材」；也可以随时再新建一个全新的世界。
+
+> AI 输出质量的控制手段（`js/ai.js`）：只让 AI 输出叙事内容（title/emoji/color/text），**坐标由程序按时间线排布**；固定 JSON Schema + `response_format=json_object`；emoji 限定候选列表、颜色限定色板；段落数量/字数/人称/情绪递进写进系统提示；输出不合规时把错误喂回模型重试最多 3 次；解析容错（去 markdown 围栏/尾逗号）。
+
+## 背景音乐
+
+- **内置抒情 BGM**：Web Audio 程序化生成（温暖和弦 + 五声音阶琶音），零音频文件、离线可用；风声音效叠加其上；
+- **每个故事可配置自己的 BGM**：编辑故事时「🎵 背景音乐」上传（≤20MB 音频），存 IndexedDB（按世界隔离），走主音量/静音统一控制；**游玩某个故事时自动用它的音乐**，没配的用内置旋律；分享链接不含音乐。
+
+## 故事分享
+
+- 「我的游戏」→ 每个世界卡「🔗 分享」→ 生成链接（`#share=…`，用原生 `CompressionStream` 压缩 + base64url，中文文本几 KB）；
+- 对方打开链接进入**只读体验模式**：开始页只剩标题 + 音量 + Start，**没有**「make your life story…」「我的游戏」、角色/语言设置、右上角 👤 头像，结尾页也没有创作入口——只能体验观看和「再走一遍」重玩；
+- 照片/视频是二进制文件，**不会**包含在分享链接里（分享对话框有说明）；
+- 每次打开分享链接都从头开始。
+
+## 数据如何区分用户、存在哪里（纯本地，无后端）
+
+| 内容 | 存储位置 |
+|---|---|
+| 用户身份（随机 userId + 昵称） | localStorage `mls-user` |
+| 世界列表 / 元信息 | localStorage `mls-worlds` |
+| 世界完整数据（回忆文本 + 配置） | localStorage `mls-world:<id>` |
+| 照片 / 视频二进制 | IndexedDB `mls-assets`（localStorage 只有 ~5MB 放不下视频） |
+| 当前玩哪个世界 | localStorage `mls-active`（`default` = 内置故事） |
+| AI 设置（Key / 模型 / 接口） | localStorage `mls-ai` |
+| 创作模式（智能生成/手动创作） | localStorage `mls-mode` |
+| 内置旅程角色（男/女） | localStorage `mls-gender`（自定义故事的角色存各自世界里：`world.gender`） |
+| 界面语言（中文/英文） | localStorage `mls-lang` |
+| 每个故事的背景音乐 | IndexedDB `mls-assets`（key: `<worldId>:bgm:bgm`） |
+| 游戏进度 | localStorage `mls-progress`（自定义世界为 `mls-progress:<worldId>`，互不干扰） |
+
+- 每个浏览器环境 = 一个用户（无账号体系，隐私优先）；
+- 一个用户可以保存**任意多个世界**，随时切换游玩；世界 JSON 用 `mls-world:<id>` 独立存放，二进制资产按 `worldId:memId:kind` 在 IndexedDB 里一一对应；
+- **导出 / 导入已开放**：「我的游戏」每个世界卡可 `📤 导出`（JSON 备份，照片内嵌、视频不包含），列表顶部 `📥 导入` 可恢复（含照片）；
+
+## 怎么加一段新回忆（核心迭代方式）
+
+打开 `js/memories.js`，在 `MEMORIES` 数组里加一项，保存后刷新页面即可，**不需要改任何游戏代码**：
+
+```js
+{
+  id: 'old-letter',            // 唯一 id（不要与已有项重复）
+  title: '一封没寄出的信',
+  x: 7000,                     // 放在小路的哪个位置（0 ~ worldLength）
+  emoji: '💌',                 // 物品图标（没有配图时显示）
+  color: '#e07b8a',            // 光晕颜色
+  image: null,                 // 可选：'assets/images/xxx.jpg'
+  video: null,                 // 可选：{ url: 'assets/videos/xxx.mp4', poster: 'assets/images/xxx.jpg' }
+  text: [ '第一段……', '第二段……' ],  // 回忆文案，每段一个元素（打字机逐段显示）
+}
+```
+
+调整行走速度、小路长度等：改 `js/memories.js` 顶部的 `GAME_CONFIG`。
+
+## 配图和视频
+
+- **图片**：AI 生成（即梦 / 通义万相 / Midjourney 等）后放进 `assets/images/`，把路径填到 `image` 字段
+- **视频**：用 AI 工具（可灵 / 即梦 / 海螺等）生成 **5~10 秒**短片，压缩到 **10MB 内**（剪映 / ffmpeg），放进 `assets/videos/`，填到 `video.url`。游戏会自动显示播放器（接口已留好）
+
+## 进度存档
+
+每次**进入故事都从头开始**（不恢复进度）；游戏内进度会实时写入 localStorage（key: `mls-progress`，自定义世界为 `mls-progress:<worldId>`），为以后的「继续游玩」预留。想清空进度也可以走到结尾点「再走一遍」，或在控制台执行：
+
+```js
+localStorage.removeItem('mls-progress')
+```
+
+## 发布到 itch.io
+
+1. 把 `index.html`、`css/`、`js/`、`assets/` 一起打成 zip（zip 根目录直接包含 `index.html`）
+2. 打开 [itch.io](https://itch.io) → Create new project → 类型选 **HTML**
+3. 上传 zip；嵌入尺寸填 **960×540**（逻辑分辨率，与 `GAME_CONFIG.viewW/viewH` 一致）
+4. 发布后更新 zip 即可持续迭代新版本
+
+## 开发与自动化测试
+
+`scripts/` 下有基于无头 Chrome（CDP）的功能验证脚本，改完代码后可跑一遍确认没弄坏。
+每次跑测试前用**全新 profile 启动 Chrome**（避免浏览器缓存旧 JS 文件），并加上反节流参数：
+
+```bash
+python3 -m http.server 8090 &          # 先起本地服务
+rm -rf /tmp/mls-cdp &&                  # 全新 profile，确保加载最新代码
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless=new --no-sandbox --disable-gpu --user-data-dir=/tmp/mls-cdp \
+  --disable-background-timer-throttling --disable-renderer-backgrounding \
+  --disable-backgrounding-occluded-windows \
+  --remote-debugging-port=9223 about:blank &
+node scripts/verify-game.mjs           # 核心流程：行走/拾取/回忆/打字机/暂停/存档恢复/加速
+node scripts/verify-end.mjs            # 端到端：走到终点 → 未完待续
+node scripts/verify-restart.mjs        # 「再走一遍」必须从头开始
+```
+
+> `scripts/probe.html` 是测试专用的同源空白页（仅用于读写 localStorage 存档），不会影响游戏本身。
+
+## 路线图
+
+- [x] MVP：行走 + 拾取 + 文字回忆 + 进度存档 + 「未完待续」结尾
+- [ ] 接入 AI 生成视频（`video` 字段接口已留好）
+- [ ] AI 生成美术，替换程序化占位图（背景 / 角色 / 物品图标）
+- [ ] 旁白配音（剪映 / Edge TTS）与背景音乐
+- [ ] 更多回忆与章节（继续往 `memories.js` 加即可）

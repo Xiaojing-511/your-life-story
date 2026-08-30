@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="林间拾忆 —— 一款步行叙事小游戏：沿着林间小路，拾起散落在路边的人生回忆。">
+  <title>林间拾忆 · 未完待续</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌲</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="stage" class="prestart">
+    <canvas id="game"></canvas>
+
+    <!-- HUD -->
+    <div id="hud">
+      <div id="hud-left"><span id="hud-count">🍃 回忆 0/0</span></div>
+      <div id="hud-bar"><div id="hud-bar-fill"></div></div>
+      <div id="hud-right">
+        <button id="btn-mute" title="声音开关">🔊</button>
+        <div id="story-switch">
+          <button id="btn-story-switch" title="切换故事">👤</button>
+          <div id="story-menu" class="hidden">
+            <div class="story-menu-head">👤 切换故事</div>
+            <div id="story-menu-list"></div>
+            <div class="story-menu-foot">
+              <button type="button" id="story-menu-manage" class="story-menu-foot-btn" data-i18n="menu.manage">✏️ 管理我的游戏</button>
+              <button type="button" id="story-menu-make" class="story-menu-foot-btn">✨ make your life story…</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="hint">点击小路任意位置走到那里 · 按住 <b>空格</b> 一直走 · <b>Esc</b> 暂停</div>
+    <div id="toast" class="hidden"></div>
+
+    <!-- 回忆弹层 -->
+    <div id="memory-screen" class="screen hidden">
+      <div id="memory-card">
+        <div id="memory-art"><div class="art-emoji"></div></div>
+        <h2 id="memory-title"></h2>
+        <div id="memory-count"></div>
+        <div id="memory-video" class="hidden"></div>
+        <div id="memory-text"></div>
+        <div id="memory-footer">
+          <span id="memory-index"></span>
+          <button id="memory-next" class="btn-primary" data-i18n="memory.next" disabled>继续前行 ▸</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 结尾 -->
+    <div id="end-screen" class="screen hidden">
+      <div class="end-card">
+        <div class="end-emoji">🌲</div>
+        <h1 data-i18n="end.title">未完待续</h1>
+        <p class="end-sub">TO BE CONTINUED</p>
+        <p id="end-stats" class="end-stats"></p>
+        <p class="end-note" data-i18n="end.note">林间深处，还有更多回忆在等你。</p>
+        <div class="end-actions">
+          <button id="btn-restart" class="btn-primary" data-i18n="end.walkAgain">再走一遍</button>
+          <button id="btn-make-story" class="btn-ghost">make your life story…</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 暂停 -->
+    <div id="pause-screen" class="screen hidden">
+      <div class="pause-card">
+        <h1 data-i18n="pause.title">已暂停</h1>
+        <p data-i18n="pause.esc">按 Esc 继续前行</p>
+        <div class="pause-actions">
+          <button type="button" id="btn-pause-resume" class="btn-primary" data-i18n="pause.resume">继续</button>
+          <button type="button" id="btn-pause-restart" class="btn-ghost">Restart</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 开始页：模糊背景 + 音量 + Start，与「继续前行」回忆页分离 -->
+    <div id="start-screen" class="screen">
+      <div class="start-panel">
+        <h1 class="start-title">your life story</h1>
+        <div class="volume-control">
+          <span class="volume-label" data-i18n="start.volume">音量</span>
+          <span id="volume-icon" aria-hidden="true">🔉</span>
+          <input id="volume-slider" type="range" min="0" max="100" value="50" step="1" aria-label="音量">
+        </div>
+        <div class="gender-control">
+          <span class="volume-label" data-i18n="start.gender">角色</span>
+          <button type="button" id="gender-male" class="gender-btn" data-i18n="gender.male">👦 男</button>
+          <button type="button" id="gender-female" class="gender-btn" data-i18n="gender.female">👧 女</button>
+        </div>
+        <div class="gender-control">
+          <span class="volume-label" data-i18n="start.lang">语言</span>
+          <button type="button" id="lang-zh" class="gender-btn">中文</button>
+          <button type="button" id="lang-en" class="gender-btn">EN</button>
+        </div>
+        <button type="button" id="btn-start" class="btn-primary ready">Start</button>
+        <div class="start-links">
+          <button type="button" id="btn-make-story" class="btn-ghost small">make your life story…</button>
+          <button type="button" id="btn-worlds" class="btn-ghost small" data-i18n="start.myStories">我的游戏</button>
+        </div>
+        <p id="shared-note" class="shared-note"></p>
+      </div>
+    </div>
+
+    <!-- make your life story… 创作器 -->
+    <div id="creator-screen" class="screen hidden">
+      <div class="creator-wrap">
+        <button type="button" id="creator-close" class="creator-close" title="关闭">✕</button>
+        <h2 class="creator-title">make your life story…</h2>
+
+        <!-- 阶段一：配置 + 收集素材 -->
+        <section id="creator-collect" class="creator-section">
+          <p class="creator-desc" data-i18n="creator.desc">把人生讲成一个可以走进去的故事。先选一种创作方式，随时可以切换。</p>
+
+          <!-- 创作模式切换（配置页核心） -->
+          <div class="mode-toggle" role="tablist" aria-label="创作方式">
+            <button type="button" class="mode-btn" data-mode="ai">✨ 智能生成</button>
+            <button type="button" class="mode-btn" data-mode="manual">✍️ 手动创作</button>
+          </div>
+          <p id="mode-tip" class="creator-hint" style="text-align:center"></p>
+
+          <!-- 昵称（两种模式都用） -->
+          <div class="creator-field">
+            <label class="creator-label"><span data-i18n="creator.name">怎么称呼你？</span>
+              <input id="c-name" type="text" placeholder="昵称（可选，会用在故事标题里）" maxlength="20" data-i18n-placeholder="creator.namePh">
+            </label>
+          </div>
+
+          <!-- ── AI 模式：素材表单 + AI 设置 ── -->
+          <div id="collect-ai" class="collect-mode">
+            <div id="ai-status" class="ai-status"></div>
+
+            <details id="ai-settings-details" class="ai-settings">
+              <summary data-i18n="creator.aiSettings">🤖 AI 设置（不填也能用：切到「✍️ 手动创作」即可）</summary>
+              <div class="ai-settings-body">
+                <p class="creator-hint" data-i18n-html="creator.aiSettingsHint">
+                  API Key 是 AI 服务的「钥匙」。在 <a href="https://open.bigmodel.cn" target="_blank" rel="noopener">open.bigmodel.cn</a>
+                  注册（免费、实名认证）后在控制台领取，`glm-4-flash` 模型调用是免费的。
+                  Key 只保存在你自己的浏览器里，不会上传。
+                </p>
+                <div class="creator-grid">
+                  <div class="creator-field">
+                    <label class="creator-label">API Key
+                      <input id="ai-key" type="password" placeholder="粘贴你的 GLM API Key" autocomplete="off" spellcheck="false" data-i18n-placeholder="creator.keyPh">
+                    </label>
+                  </div>
+                  <div class="creator-field">
+                    <label class="creator-label"><span data-i18n="creator.model">模型</span>
+                      <input id="ai-model" type="text" spellcheck="false">
+                    </label>
+                  </div>
+                  <div class="creator-field creator-field-wide">
+                    <label class="creator-label"><span data-i18n="creator.base">接口地址（一般不用改）</span>
+                      <input id="ai-base" type="text" spellcheck="false">
+                    </label>
+                  </div>
+                </div>
+                <div class="creator-row">
+                  <button type="button" id="btn-ai-save" class="btn-ghost small" data-i18n="creator.saveSettings">保存设置</button>
+                  <button type="button" id="btn-ai-test" class="btn-ghost small" data-i18n="creator.testConn">测试连接</button>
+                </div>
+              </div>
+            </details>
+
+            <p class="creator-desc" data-i18n="creator.materialDesc">按成长顺序讲一讲你的人生：小时候、上学、工作、重要的人、遗憾……想到哪说到哪，AI 会自己帮你整理成一段按年龄排列的故事。</p>
+            <div class="creator-field">
+              <label class="creator-label"><span data-i18n="creator.life">✍️ 你的人生经历（按时间顺序）</span> <button type="button" class="mic-btn" data-target="c-life" title="语音输入">🎙</button></label>
+              <textarea id="c-life" rows="9" data-i18n-placeholder="creator.lifePh" placeholder="从小时候开始，按时间顺序慢慢讲，例如：
+· 童年：在哪长大、和谁一起、最难忘的事
+· 求学：学校、老师、朋友、梦想
+· 工作/城市：第一份工作、打拼的日子
+· 重要的人：爱情、友情、相遇与告别
+· 遗憾、没来得及说的话……"></textarea>
+            </div>
+            <div class="creator-row">
+              <label class="creator-label"><span data-i18n="creator.count">回忆数量</span>
+                <input id="c-count" type="number" min="3" max="8" value="5" style="width:64px">
+                <span class="creator-hint" data-i18n="creator.countHint">（3~8 段）</span>
+              </label>
+            </div>
+            <div class="creator-actions">
+              <button type="button" id="btn-ai-generate" class="btn-primary" data-i18n="creator.aiGenerate">✨ AI 生成我的故事</button>
+            </div>
+          </div>
+
+          <!-- ── 手动模式：不依赖 AI，直接写 ── -->
+          <div id="collect-manual" class="collect-mode hidden">
+            <p class="creator-desc" data-i18n="creator.manualDesc">
+              不需要任何配置，完全自己写：每段回忆可以写文字、选图标和颜色，之后还能给每段配上照片或小视频（≤15MB）。
+            </p>
+            <div class="creator-actions">
+              <button type="button" id="btn-manual-start" class="btn-primary" data-i18n="creator.manualStart">✍️ 开始写我的故事</button>
+            </div>
+          </div>
+
+          <div id="creator-msg" class="creator-msg"></div>
+        </section>
+
+        <!-- 阶段二：编辑预览 -->
+        <section id="creator-edit" class="creator-section hidden">
+          <p class="creator-desc" data-i18n="creator.editDesc">检查一下回忆，可以改文字、图标、颜色，还能上传照片 / 小视频（≤15MB）。</p>
+          <div class="mode-toggle mode-toggle-small" role="tablist" aria-label="创作方式">
+            <button type="button" class="mode-btn" data-mode="ai">✨ 智能生成</button>
+            <button type="button" class="mode-btn" data-mode="manual">✍️ 手动创作</button>
+          </div>
+          <div class="creator-field">
+            <label class="creator-label"><span data-i18n="creator.worldTitle">故事标题</span>
+              <input id="c-world-title" type="text" maxlength="20" placeholder="我的故事的名字" data-i18n-placeholder="creator.worldTitlePh">
+            </label>
+          </div>
+          <div class="creator-field">
+            <label class="creator-label">
+              <span data-i18n="creator.bgm">🎵 背景音乐（可选，仅这个故事使用）</span>
+              <button type="button" id="btn-world-bgm" class="btn-ghost small" data-i18n="creator.bgmUpload">上传（≤20MB）</button>
+              <button type="button" id="btn-world-bgm-remove" class="btn-ghost small hidden" data-i18n="creator.bgmRemove">移除</button>
+            </label>
+            <input id="world-bgm-file" type="file" accept="audio/*" class="hidden" style="display:none">
+            <p id="world-bgm-name" class="creator-hint"></p>
+          </div>
+          <div class="creator-field">
+            <label class="creator-label">
+              <span data-i18n="creator.gender">角色（仅这个故事使用）</span>
+              <button type="button" class="gen-btn gender-btn" data-gender="male" data-i18n="gender.male">👦 男</button>
+              <button type="button" class="gen-btn gender-btn" data-gender="female" data-i18n="gender.female">👧 女</button>
+            </label>
+          </div>
+          <p id="creator-edit-note" class="creator-hint"></p>
+          <div id="creator-mem-list"></div>
+          <div class="creator-actions">
+            <button type="button" id="btn-add-memory" class="btn-ghost" data-i18n="creator.addMemory">＋ 添加一段回忆</button>
+            <button type="button" id="btn-regenerate" class="btn-ghost" data-i18n="creator.regenerate">🔄 重新生成</button>
+            <button type="button" id="btn-back-material" class="btn-ghost" data-i18n="creator.backMaterial">← 修改素材</button>
+          </div>
+          <div class="creator-actions">
+            <button type="button" id="btn-save-draft" class="btn-ghost" data-i18n="creator.saveDraft">保存草稿</button>
+            <button type="button" id="btn-play" class="btn-primary" data-i18n="creator.play">▶ 一键生成并游玩</button>
+          </div>
+          <div id="creator-msg" class="creator-msg"></div>
+        </section>
+      </div>
+    </div>
+
+    <!-- 我的游戏 -->
+    <div id="worlds-screen" class="screen hidden">
+      <div class="creator-wrap">
+        <button type="button" id="worlds-close" class="creator-close" title="关闭">✕</button>
+        <h2 class="creator-title" data-i18n="worlds.title">我的游戏</h2>
+        <div class="creator-row">
+          <button type="button" id="btn-worlds-new" class="btn-primary" data-i18n="worlds.new">＋ 新建我的故事</button>
+          <button type="button" id="btn-worlds-import" class="btn-ghost small" data-i18n="worlds.import">📥 导入</button>
+          <input id="worlds-import-input" type="file" accept="application/json,.json" class="hidden" style="display:none">
+        </div>
+        <div id="worlds-list"></div>
+      </div>
+    </div>
+
+    <!-- 分享故事 -->
+    <div id="share-screen" class="screen hidden">
+      <div class="creator-wrap">
+        <button type="button" id="share-close" class="creator-close" title="关闭">✕</button>
+        <h2 class="creator-title" data-i18n="share.title">分享这个故事</h2>
+        <p class="creator-hint share-desc" data-i18n="share.desc">对方打开链接后只会看到「开始」和音量，仅可体验观看，无法编辑。照片/视频不会包含在链接里。</p>
+        <input id="share-url" type="text" readonly class="share-url" spellcheck="false">
+        <div class="creator-actions">
+          <button type="button" id="btn-share-copy" class="btn-primary" data-i18n="share.copy">复制链接</button>
+          <button type="button" id="btn-share-system" class="btn-ghost hidden" data-i18n="share.system">系统分享</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/memories.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/site-config.js"></script>
+  <script src="js/share.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/creator.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
