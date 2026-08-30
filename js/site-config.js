@@ -8,5 +8,5 @@
  * 改完保存后，生成的分享链接会自动用这个地址。
  * ============================================================ */
 window.SITE_CONFIG = {
-  shareBase: '',
+  shareBase: 'https://Xiaojing-511.github.io/your-life-story',
 };
