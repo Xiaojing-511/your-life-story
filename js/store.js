@@ -70,7 +70,34 @@ window.StoryStore = (() => {
 
   /* ================= 世界元信息 ================= */
   function listWorlds() {
-    return lsGet(LS.worlds, { v: 1, worlds: [] }).worlds || [];
+    const d = lsGet(LS.worlds, { v: 1, worlds: [] });
+    const worlds = Array.isArray(d.worlds) ? [...d.worlds] : [];
+    // 自愈：元信息列表丢失/损坏时，从 mls-world:* 数据重建，保证已保存的故事一定出现在列表里
+    const have = new Set(worlds.map((w) => w.id));
+    let changed = false;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(LS.worldPrefix)) {
+        const id = k.slice(LS.worldPrefix.length);
+        if (!have.has(id)) {
+          const w = lsGet(k, null);
+          if (w && w.id) {
+            worlds.push({
+              id: w.id,
+              title: w.title || '我的人生',
+              createdAt: w.createdAt || Date.now(),
+              updatedAt: w.updatedAt || Date.now(),
+              origin: w.origin || 'manual',
+              count: (w.memories || []).length,
+            });
+            have.add(id);
+            changed = true;
+          }
+        }
+      }
+    }
+    if (changed) lsSet(LS.worlds, { v: 1, worlds });
+    return worlds;
   }
   function saveWorldMeta(meta) {
     const d = lsGet(LS.worlds, { v: 1, worlds: [] });

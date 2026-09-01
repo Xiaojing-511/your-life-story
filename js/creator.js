@@ -80,6 +80,7 @@ window.Creator = (() => {
     $('creator-collect').classList.remove('hidden');
     $('creator-edit').classList.add('hidden');
     $('worlds-screen').classList.add('hidden');
+    $('settings-screen').classList.add('hidden');
     $('creator-screen').classList.remove('hidden');
     window.UI.hideAllScreens();
   }
@@ -97,7 +98,14 @@ window.Creator = (() => {
     $('story-menu').classList.add('hidden');
     $('creator-screen').classList.add('hidden');
     $('worlds-screen').classList.add('hidden');
-    if (window.GameHooks) window.GameHooks.resume();
+    $('settings-screen').classList.add('hidden');
+    // 从开始页打开的管理界面：关闭后回到开始页；游戏内则恢复行走
+    const stage = document.getElementById('stage');
+    if (stage && stage.classList.contains('prestart')) {
+      window.UI.showStart();
+    } else if (window.GameHooks) {
+      window.GameHooks.resume();
+    }
   }
 
   /* ================= 创作模式：智能生成 / 手动创作 ================= */
@@ -265,6 +273,7 @@ window.Creator = (() => {
     const count = Math.max(3, Math.min(8, parseInt($('c-count').value, 10) || 5));
     setBusy(true, window.I18N.t('creator.busyGen'));
     try {
+      persistAiForm(); // 填了 Key 直接生成也会记住（全局设置）
       const res = await window.AI.generateMemories({
         name: currentName,
         material: currentMaterial,
@@ -558,14 +567,14 @@ window.Creator = (() => {
 
   // 照片压缩：超过 1280px 等比缩小，转 JPEG（PNG 大图也会被转小）
   async function compressImage(file) {
-    if (!file.type.startsWith('image/')) throw new Error('不是图片文件');
+    if (!file.type.startsWith('image/')) throw new Error(window.I18N.t('creator.errNotImage'));
     if (file.type === 'image/gif' || file.size < 300 * 1024) return file;
     const url = URL.createObjectURL(file);
     try {
       const img = await new Promise((res, rej) => {
         const i = new Image();
         i.onload = () => res(i);
-        i.onerror = () => rej(new Error('图片无法解码'));
+        i.onerror = () => rej(new Error(window.I18N.t('creator.errImageDecode')));
         i.src = url;
       });
       const max = 1280;
@@ -617,6 +626,7 @@ window.Creator = (() => {
         title,
         name: currentName,
         origin: currentOrigin || 'ai',
+        mode: currentMode, // 这个故事用 AI 还是手写（编辑页可切换，保存后记住）
         material: currentMaterial,
         config,
         memories: cleaned.map((m) => ({ ...m, image: null, video: null })),
@@ -674,6 +684,7 @@ window.Creator = (() => {
     currentTitle = w.title || '';
     currentName = w.name || '';
     currentOrigin = w.origin || 'manual';
+    currentMode = w.mode === 'ai' || w.mode === 'manual' ? w.mode : defaultMode();
     currentMaterial = w.material || {};
     memories = (w.memories || []).map((m) => ({
       id: m.id,
@@ -705,6 +716,7 @@ window.Creator = (() => {
       if (a && a.blob) currentBGM = a.blob;
     }
     syncBGMUI();
+    renderMode(); // 按这个故事的 mode 恢复 AI/手动切换
     enterEdit();
   }
 
@@ -713,6 +725,7 @@ window.Creator = (() => {
     if (isViewer()) return; // 只读体验模式：没有「我的游戏」
     window.AUDIO.unlock();
     $('creator-screen').classList.add('hidden');
+    $('settings-screen').classList.add('hidden');
     $('worlds-screen').classList.remove('hidden');
     window.UI.hideAllScreens();
     renderWorlds();
@@ -723,17 +736,31 @@ window.Creator = (() => {
     const active = window.StoryStore.getActiveWorldId();
     list.innerHTML = '';
 
-    // 内置旅程
-    list.appendChild(
-      worldCard({
-        title: window.I18N.t('worlds.builtin'),
-        meta: window.I18N.t('worlds.builtinMeta', { n: window.MEMORIES.length }),
-        active: active === 'default',
-        actions: [
-          { label: window.I18N.t('worlds.play'), fn: () => { window.StoryStore.setActiveWorld('default'); location.reload(); } },
-        ],
-      }),
-    );
+    // 内置旅程（它也是一个故事：角色在这里配置，而不是在开始页）
+    const builtinG = window.GAME_SETTINGS.getGender();
+    const builtinCard = worldCard({
+      title: window.I18N.t('worlds.builtin'),
+      meta: window.I18N.t('worlds.builtinMeta', { n: window.MEMORIES.length }),
+      active: active === 'default',
+      actions: [
+        { label: window.I18N.t('worlds.play'), fn: () => { window.StoryStore.setActiveWorld('default'); location.reload(); } },
+      ],
+    });
+    const gRow = document.createElement('div');
+    gRow.className = 'world-gender';
+    gRow.innerHTML =
+      `<span class="world-gender-label">${esc(window.I18N.t('worlds.gender'))}</span>` +
+      `<button type="button" class="gender-btn gender-btn-sm${builtinG === 'male' ? ' active' : ''}" data-g="male">${esc(window.I18N.t('gender.male'))}</button>` +
+      `<button type="button" class="gender-btn gender-btn-sm${builtinG === 'female' ? ' active' : ''}" data-g="female">${esc(window.I18N.t('gender.female'))}</button>`;
+    gRow.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-g]');
+      if (!btn) return;
+      window.GAME_SETTINGS.setGender(btn.dataset.g === 'female' ? 'female' : 'male');
+      renderWorlds();
+    });
+    const builtinActs = builtinCard.querySelector('.world-card-actions');
+    builtinCard.insertBefore(gRow, builtinActs);
+    list.appendChild(builtinCard);
 
     // 用户的世界
     const worlds = window.StoryStore
@@ -801,9 +828,9 @@ window.Creator = (() => {
       a.download = ((w && w.title) || 'your-life-story').replace(/[\\/:*?"<>|]/g, '_') + '.json';
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-      window.UI.toast('已导出（照片已内嵌，视频不包含）');
+      window.UI.toast(window.I18N.t('export.ok'));
     } catch (e) {
-      window.UI.toast('导出失败：' + e.message);
+      window.UI.toast(window.I18N.t('export.err', { msg: e.message }));
     }
   }
 
@@ -818,6 +845,7 @@ window.Creator = (() => {
       const sys = $('btn-share-system');
       if (sys) sys.classList.toggle('hidden', !navigator.share);
       $('worlds-screen').classList.add('hidden');
+      $('settings-screen').classList.add('hidden');
       $('share-screen').classList.remove('hidden');
       window.I18N.applyStatic();
     } catch (e) {
@@ -870,12 +898,15 @@ window.Creator = (() => {
   }
 
   /* ================= AI 设置 ================= */
-  function saveAiSettings() {
-    window.AI.saveSettings({
+  function persistAiForm() {
+    return window.AI.saveSettings({
       key: $('ai-key').value.trim(),
       model: $('ai-model').value.trim() || 'glm-4-flash',
       base: $('ai-base').value.trim() || 'https://open.bigmodel.cn/api/paas/v4',
     });
+  }
+  function saveAiSettings() {
+    persistAiForm();
     updateAIStatus();
     window.UI.toast(window.I18N.t('creator.settingsSaved'));
   }
@@ -896,6 +927,44 @@ window.Creator = (() => {
     updateAIStatus();
   }
 
+  /* ================= 全局设置（右上角 ⚙️） ================= */
+  function openSettings() {
+    const s = window.AI.getSettings();
+    $('set-ai-key').value = s.key;
+    $('set-ai-model').value = s.model;
+    $('set-ai-base').value = s.base;
+    const m = $('settings-msg');
+    m.textContent = '';
+    m.className = 'creator-msg';
+    $('creator-screen').classList.add('hidden');
+    $('worlds-screen').classList.add('hidden');
+    $('share-screen').classList.add('hidden');
+    $('settings-screen').classList.remove('hidden');
+    window.UI.hideAllScreens();
+  }
+  function saveGlobalSettings() {
+    window.AI.saveSettings({
+      key: $('set-ai-key').value.trim(),
+      model: $('set-ai-model').value.trim() || 'glm-4-flash',
+      base: $('set-ai-base').value.trim() || 'https://open.bigmodel.cn/api/paas/v4',
+    });
+    window.UI.toast(window.I18N.t('creator.settingsSaved'));
+  }
+  async function testGlobalAi() {
+    saveGlobalSettings();
+    const m = $('settings-msg');
+    m.textContent = window.I18N.t('creator.testing');
+    m.className = 'creator-msg busy';
+    try {
+      const r = await window.AI.testConnection();
+      m.textContent = window.I18N.t('creator.testOk', { r: r || 'ok' });
+      m.className = 'creator-msg ok';
+    } catch (e) {
+      m.textContent = window.I18N.t('creator.testFail', { msg: e.message });
+      m.className = 'creator-msg err';
+    }
+  }
+
   /* ================= 语音输入 ================= */
   function initVoice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -914,7 +983,7 @@ window.Creator = (() => {
         }
         const rec = new SR();
         btn._rec = rec;
-        rec.lang = 'zh-CN';
+        rec.lang = window.I18N.isEn() ? 'en-US' : 'zh-CN';
         rec.interimResults = false;
         rec.maxAlternatives = 1;
         const ta = document.getElementById(btn.dataset.target);
@@ -940,8 +1009,9 @@ window.Creator = (() => {
 
   /* ================= 初始化 ================= */
   function init() {
-    // 开始页入口
+    // 开始页入口（结尾屏按钮 id=btn-make-story，开始页按钮 id=btn-make-story-start）
     $('btn-make-story').addEventListener('click', open);
+    $('btn-make-story-start').addEventListener('click', open);
     $('btn-worlds').addEventListener('click', showWorlds);
     // 右上角「用户」故事切换
     $('btn-story-switch').addEventListener('click', (e) => {
@@ -960,6 +1030,19 @@ window.Creator = (() => {
       $('story-menu').classList.add('hidden');
       open();
     });
+    // 右上角 ⚙️ 全局设置
+    $('story-menu-settings').addEventListener('click', () => {
+      returnToGame = true;
+      storyMenuOpen = false;
+      $('story-menu').classList.add('hidden');
+      openSettings();
+    });
+    $('settings-close').addEventListener('click', () => {
+      if (returnToGame) returnFromGameUI();
+      else close();
+    });
+    $('btn-settings-save').addEventListener('click', saveGlobalSettings);
+    $('btn-settings-test').addEventListener('click', testGlobalAi);
     document.addEventListener('click', (e) => {
       if (storyMenuOpen && !e.target.closest('#story-switch')) closeStoryMenu();
     });

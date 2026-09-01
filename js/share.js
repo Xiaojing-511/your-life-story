@@ -44,19 +44,27 @@ window.ShareCode = (() => {
   }
 
   /* ---------- 编码 / 解码 ---------- */
-  // 只保留文字类字段（照片/视频不带入分享链接）
+  // 只保留文字类字段（照片/视频不带入分享链接）；角色和完整布局（回忆位置、
+  // 路长）随故事一起分享，接收方看到的初始位置和原故事完全一致。
   function buildPayload(world) {
+    const worldLength =
+      world && world.config && Number(world.config.worldLength) > 0
+        ? Number(world.config.worldLength)
+        : 0;
     return {
       v: 1,
       title: (world && world.title) || '',
       name: (world && world.name) || '',
       origin: (world && world.origin) || 'manual',
+      gender: world && world.gender === 'female' ? 'female' : 'male',
+      worldLength,
       memories: ((world && world.memories) || []).map((m) => ({
         id: m.id,
         title: m.title,
         emoji: m.emoji,
         color: m.color,
         text: Array.isArray(m.text) ? m.text : [],
+        x: typeof m.x === 'number' && m.x >= 0 ? m.x : null,
       })),
     };
   }
@@ -78,6 +86,8 @@ window.ShareCode = (() => {
       title: data.title || '',
       name: data.name || '',
       origin: data.origin || 'manual',
+      gender: data.gender === 'female' ? 'female' : 'male',
+      worldLength: Number(data.worldLength) > 0 ? Number(data.worldLength) : 0,
       memories: data.memories
         .filter((m) => m && Array.isArray(m.text) && m.text.length)
         .map((m) => ({
@@ -86,6 +96,7 @@ window.ShareCode = (() => {
           emoji: m.emoji || '🍃',
           color: m.color || '#d4a24e',
           text: m.text.map((t) => String(t)),
+          x: typeof m.x === 'number' && m.x >= 0 ? m.x : null,
           image: null,
           video: null,
         })),

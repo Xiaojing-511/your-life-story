@@ -98,6 +98,14 @@ body {
   z-index: 100;
 }
 #story-menu.hidden { display: none; }
+.story-menu-brand {
+  font-family: "Cormorant Garamond", "Songti SC", "STSong", Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  color: #ffe3a1;
+  padding: 6px 10px 0;
+}
 .story-menu-head {
   font-size: 12px; letter-spacing: 0.5px;
   color: rgba(242, 234, 216, 0.55);
@@ -270,7 +278,6 @@ body {
   font-weight: 500;
   font-style: italic;
   letter-spacing: 0.08em;
-  text-transform: lowercase;
   color: #ffe3a1;
   text-shadow: 0 2px 20px rgba(0, 0, 0, 0.8);
 }
@@ -707,6 +714,23 @@ body {
 .world-card-meta { font-size: 12px; color: rgba(242, 234, 216, 0.55); margin: 4px 0 10px; }
 .world-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .worlds-empty { font-size: 14px; color: rgba(242, 234, 216, 0.6); margin-top: 18px; }
+
+/* 我的游戏：内置旅程卡里的角色切换（每个故事各自的设置） */
+.world-gender {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.world-gender-label {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: rgba(242, 234, 216, 0.55);
+}
+.gender-btn-sm {
+  font-size: 12px;
+  padding: 5px 12px;
+}
 
 @media (max-width: 640px) {
   .creator-wrap { padding: 24px 16px 20px; }

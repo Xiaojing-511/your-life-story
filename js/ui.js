@@ -35,16 +35,10 @@ window.UI = (() => {
   let pauseRestartCb = null;
   let toastTimer = null;
 
-  /* ---------- 语言 / 角色 ---------- */
+  /* ---------- 语言 ---------- */
   const hintEl = document.getElementById('hint');
   function applyLang() {
     if (hintEl) hintEl.innerHTML = window.I18N.t('hint');
-    // 角色按钮选中态
-    const g = window.GAME_SETTINGS.getGender();
-    const gm = document.getElementById('gender-male');
-    const gf = document.getElementById('gender-female');
-    if (gm) gm.classList.toggle('active', g === 'male');
-    if (gf) gf.classList.toggle('active', g === 'female');
     // 语言按钮选中态
     const l = window.GAME_SETTINGS.getLang();
     const lz = document.getElementById('lang-zh');
@@ -53,14 +47,11 @@ window.UI = (() => {
     if (le) le.classList.toggle('active', l === 'en');
   }
   function bindSettings() {
-    const gm = document.getElementById('gender-male');
-    const gf = document.getElementById('gender-female');
-    if (gm) gm.addEventListener('click', () => { window.GAME_SETTINGS.setGender('male'); applyLang(); });
-    if (gf) gf.addEventListener('click', () => { window.GAME_SETTINGS.setGender('female'); applyLang(); });
     const lz = document.getElementById('lang-zh');
     const le = document.getElementById('lang-en');
-    if (lz) lz.addEventListener('click', () => { window.GAME_SETTINGS.setLang('zh'); window.I18N.applyStatic(); applyLang(); });
-    if (le) le.addEventListener('click', () => { window.GAME_SETTINGS.setLang('en'); window.I18N.applyStatic(); applyLang(); });
+    // 用 I18N.setLang：统一更新 <html lang> / <title> / 静态文案，并派发 i18n:change
+    if (lz) lz.addEventListener('click', () => { window.I18N.setLang('zh'); });
+    if (le) le.addEventListener('click', () => { window.I18N.setLang('en'); });
     document.addEventListener('i18n:change', applyLang);
   }
 
@@ -365,10 +356,18 @@ window.UI = (() => {
     hide(els.toast);
     const creator = document.getElementById('creator-screen');
     const worlds = document.getElementById('worlds-screen');
+    const settings = document.getElementById('settings-screen');
     if (creator) hide(creator);
     if (worlds) hide(worlds);
+    if (settings) hide(settings);
     show(els.startScreen);
   }
 
-  return { showMemory, skipTyping, showEnd, hideEnd, showPause, hidePause, toast, bindStart, showStart, hideAllScreens };
+  // 开始页标题 = 当前选中的故事（点击哪个故事的「游玩」就显示哪个）
+  function setStartTitle(title) {
+    const el = document.querySelector('.start-title');
+    if (el && title) el.textContent = title;
+  }
+
+  return { showMemory, skipTyping, showEnd, hideEnd, showPause, hidePause, toast, bindStart, showStart, hideAllScreens, setStartTitle };
 })();

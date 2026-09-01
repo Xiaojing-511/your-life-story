@@ -172,7 +172,9 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
 
   /* ================= 状态 ================= */
   const SAVE_KEY =
-    worldId && worldId !== "default" ? "mls-progress:" + worldId : "mls-progress";
+    worldId && worldId !== "default"
+      ? "mls-progress:" + worldId
+      : "mls-progress";
 
   // 右上角「用户」故事切换钩子（Creator 使用）：
   // 打开菜单时安静暂停（不显示暂停页），关闭时恢复行走
@@ -189,7 +191,7 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
     },
   };
   let state = "start"; // start | walking | memory | paused | end
-  let playerX = 0;
+  let playerX = 170;
   let camX = 0;
   let t = 0;
   let holding = false; // 键盘（空格/→/D）按住
@@ -235,7 +237,11 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
     if (state === "start") return;
     if (e.code === "Escape") {
       // 故事切换菜单 / 游戏内管理界面优先吃掉 Esc
-      if (window.Creator && window.Creator.handleEscape && window.Creator.handleEscape())
+      if (
+        window.Creator &&
+        window.Creator.handleEscape &&
+        window.Creator.handleEscape()
+      )
         return;
       togglePause();
       return;
@@ -288,12 +294,9 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
       holding = false;
       clickTarget = null;
       state = "paused";
-      window.UI.showPause(
-        () => {
-          state = "walking";
-        },
-        restart,
-      );
+      window.UI.showPause(() => {
+        state = "walking";
+      }, restart);
     } else if (state === "paused") {
       state = "walking";
       window.UI.hidePause();
@@ -316,8 +319,9 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
     state = "memory";
     // 最后一段回忆看完后：若剩余路不长（按记忆段数设计的结尾步行），
     // 自动走完并触发结尾；内置旅程的漫漫长路则不自动走
-    const endX = LENGTH - 40;
-    const autoWalk = !replay && collected.size === MEMORIES.length && endX - playerX < 1600;
+    const endX = LENGTH - 140;
+    const autoWalk =
+      !replay && collected.size === MEMORIES.length && endX - playerX < 1600;
     window.UI.showMemory(it.mem, collected.size, MEMORIES.length, () => {
       state = "walking";
       if (autoWalk) {
@@ -357,7 +361,7 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
       /* ignore */
     }
     collected.clear();
-    playerX = 0;
+    playerX = 170;
     camX = 0;
     facing = 1;
     autoSaveTimer = 0;
@@ -435,6 +439,7 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
   /* ================= 主循环 ================= */
   let last = performance.now();
   function frame(now) {
+    const endX = LENGTH - 140;
     requestAnimationFrame(frame);
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
@@ -461,9 +466,9 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
         moved = true;
       }
       if (moved) {
-        playerX = clamp(playerX, 0, LENGTH - 40);
-        if (playerX >= LENGTH - 40) {
-          playerX = LENGTH - 40;
+        playerX = clamp(playerX, 0, endX);
+        if (playerX >= endX) {
+          playerX = endX;
           reachEnd();
         }
         autoSaveTimer += dt;
@@ -480,7 +485,10 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
     // HUD
     hudBarFill.style.width =
       (clamp(playerX / LENGTH, 0, 1) * 100).toFixed(1) + "%";
-    const cntText = window.I18N.t('hud.count', { n: collected.size, total: MEMORIES.length });
+    const cntText = window.I18N.t("hud.count", {
+      n: collected.size,
+      total: MEMORIES.length,
+    });
     if (hudCount.textContent !== cntText) hudCount.textContent = cntText;
 
     draw();
@@ -1077,7 +1085,9 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
     state = "walking";
     window.UI.toast(
       worldId === "shared"
-        ? window.I18N.t("toast.sharedStart", { title: window.SHARED_TITLE || "" })
+        ? window.I18N.t("toast.sharedStart", {
+            title: window.SHARED_TITLE || "",
+          })
         : worldId && worldId !== "default"
           ? window.I18N.t("toast.customStart")
           : window.I18N.t("toast.defaultStart"),
@@ -1102,21 +1112,41 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
       console.warn("分享数据解析失败", e);
     }
     if (shared && Array.isArray(shared.memories) && shared.memories.length) {
-      const config = window.StoryStore.layoutWorld(shared.memories);
+      // 分享负载自带原故事的完整布局（回忆位置 + 路长）时直接用，
+      // 接收方看到的初始位置与角色和原故事完全一致；旧链接则按当前版本重排。
+      const hasLayout =
+        shared.worldLength > 0 &&
+        shared.memories.every((m) => typeof m.x === 'number' && m.x >= 0);
+      const config = hasLayout
+        ? { ...window.GAME_CONFIG, worldLength: shared.worldLength }
+        : window.StoryStore.layoutWorld(shared.memories);
       document.body.classList.add("shared-viewer");
       stage.dataset.world = "shared";
       stage.dataset.shared = "1";
       window.SHARED_TITLE = shared.title || "";
       const note = document.getElementById("shared-note");
       if (note) {
-        note.textContent = window.I18N.t("viewer.note", { title: shared.title || "" });
+        note.textContent = window.I18N.t("viewer.note", {
+          title: shared.title || "",
+        });
       }
-      window.GameBoot(config, shared.memories, "shared", "male");
+      window.UI.setStartTitle(shared.title || "");
+      window.GameBoot(config, shared.memories, "shared", shared.gender || "male");
       return;
     }
   }
 
   stage.dataset.world = window.StoryStore.getActiveWorldId();
+  // 开始页标题 = 当前选中的故事（点击哪个故事的「游玩」就显示哪个）
+  const activeWorld =
+    stage.dataset.world && stage.dataset.world !== "default"
+      ? window.StoryStore.getWorld(stage.dataset.world)
+      : null;
+  window.UI.setStartTitle(
+    activeWorld && activeWorld.title
+      ? activeWorld.title
+      : window.I18N.t("worlds.builtin"),
+  );
   let loaded = null;
   try {
     loaded = await window.StoryStore.loadActiveWorld();
@@ -1131,7 +1161,12 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
     }
     window.GameBoot(loaded.config, loaded.memories, loaded.id, loaded.gender);
   } else {
-    window.GameBoot(window.GAME_CONFIG, window.MEMORIES, "default", window.GAME_SETTINGS.getGender());
+    window.GameBoot(
+      window.GAME_CONFIG,
+      window.MEMORIES,
+      "default",
+      window.GAME_SETTINGS.getGender(),
+    );
   }
 })();
 
