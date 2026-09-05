@@ -679,7 +679,7 @@ window.Creator = (() => {
   /* ================= 编辑已保存的世界 ================= */
   async function openWorld(id) {
     const w = window.StoryStore.getWorld(id);
-    if (!w) return;
+    if (!w || isViewer()) return;
     editingWorldId = id;
     currentTitle = w.title || '';
     currentName = w.name || '';
@@ -697,27 +697,37 @@ window.Creator = (() => {
       imageMarker: m.image === 'image',
       videoMarker: m.video === 'video',
     }));
-    for (const m of memories) {
+    // 先按这个世界把同步状态（标题/角色/模式）准备好
+    currentGender = w.gender === 'female' ? 'female' : 'male';
+    currentBGM = null;
+    syncGenderUI();
+    renderMode();
+    // 打开编辑器（与 open() 一致：盖住我的游戏/设置等界面），否则从列表进入编辑会一片空白
+    $('worlds-screen').classList.add('hidden');
+    $('settings-screen').classList.add('hidden');
+    $('share-screen').classList.add('hidden');
+    $('creator-screen').classList.remove('hidden');
+    window.UI.hideAllScreens();
+    enterEdit();
+    // 再异步还原照片/视频/BGM：每段加载完就刷新该段的预览，不用等全部读完
+    const cards = Array.from(document.querySelectorAll('#creator-mem-list .mem-edit-card'));
+    for (let i = 0; i < memories.length; i++) {
+      const m = memories[i];
       if (m.imageMarker) {
-        const a = await window.StoryStore.getAsset(id, m.id, 'image');
-        if (a) m._img = a.blob;
+        const a = await window.StoryStore.getAsset(id, m.id, 'image').catch(() => null);
+        if (a && a.blob) m._img = a.blob;
       }
       if (m.videoMarker) {
-        const a = await window.StoryStore.getAsset(id, m.id, 'video');
-        if (a) m._vid = a.blob;
+        const a = await window.StoryStore.getAsset(id, m.id, 'video').catch(() => null);
+        if (a && a.blob) m._vid = a.blob;
       }
+      if ((m._img || m._vid) && cards[i]) updatePreview(cards[i], m);
     }
-    // 加载这个故事的角色与背景音乐
-    currentGender = w.gender === 'female' ? 'female' : 'male';
-    syncGenderUI();
-    currentBGM = null;
     if (w.bgm === true) {
-      const a = await window.StoryStore.getWorldBGM(id);
+      const a = await window.StoryStore.getWorldBGM(id).catch(() => null);
       if (a && a.blob) currentBGM = a.blob;
     }
     syncBGMUI();
-    renderMode(); // 按这个故事的 mode 恢复 AI/手动切换
-    enterEdit();
   }
 
   /* ================= 我的游戏 ================= */
@@ -779,6 +789,7 @@ window.Creator = (() => {
       const originText = (w && w.origin === 'ai')
         ? window.I18N.t('worlds.originAi')
         : window.I18N.t('worlds.originManual');
+      const shareCount = recordsOfWorld(meta.id).length;
       list.appendChild(
         worldCard({
           title: meta.title || window.I18N.t('title.mine'),
@@ -786,8 +797,11 @@ window.Creator = (() => {
           active: active === meta.id,
           actions: [
             { label: window.I18N.t('worlds.play'), fn: () => { window.StoryStore.setActiveWorld(meta.id); location.reload(); } },
-            { label: window.I18N.t('worlds.edit'), fn: () => { $('worlds-screen').classList.add('hidden'); window.Creator.openWorld(meta.id); } },
+            { label: window.I18N.t('worlds.edit'), fn: () => window.Creator.openWorld(meta.id) },
             { label: window.I18N.t('worlds.share'), fn: () => showShareDialog(meta.id) },
+            ...(shareCount > 0
+              ? [{ label: window.I18N.t('worlds.shared', { n: shareCount }), fn: () => showShareManage(meta.id) }]
+              : []),
             { label: window.I18N.t('worlds.export'), fn: () => exportWorld(meta.id) },
             { label: window.I18N.t('worlds.delete'), fn: () => { if (confirm(window.I18N.t('worlds.confirmDel', { title: meta.title }))) { window.StoryStore.deleteWorld(meta.id); renderWorlds(); } } },
           ],
@@ -835,23 +849,228 @@ window.Creator = (() => {
   }
 
   /* ================= 分享 ================= */
-  async function showShareDialog(worldId) {
-    const w = window.StoryStore.getWorld(worldId);
-    if (!w) return;
+  // 云端分享记录（本机保存 shareId 列表，用于「复制/撤回」管理）
+  const SHARE_LS = 'mls-shares';
+  function readShareRecords() {
     try {
-      const payload = await window.ShareCode.encode(w);
-      const url = window.ShareCode.makeShareUrl(payload);
-      $('share-url').value = url;
-      const sys = $('btn-share-system');
-      if (sys) sys.classList.toggle('hidden', !navigator.share);
-      $('worlds-screen').classList.add('hidden');
-      $('settings-screen').classList.add('hidden');
-      $('share-screen').classList.remove('hidden');
-      window.I18N.applyStatic();
+      const d = JSON.parse(localStorage.getItem(SHARE_LS) || '[]');
+      return Array.isArray(d) ? d : [];
     } catch (e) {
-      alert(window.I18N.t('share.fail', { msg: e.message }));
+      return [];
     }
   }
+  function writeShareRecords(list) {
+    try {
+      localStorage.setItem(SHARE_LS, JSON.stringify(list));
+    } catch (e) { /* ignore */ }
+  }
+  function recordsOfWorld(worldId) {
+    return readShareRecords().filter((r) => r.worldId === worldId);
+  }
+  function fmtMB(bytes) {
+    const mb = bytes / 1048576;
+    return mb < 10 ? mb.toFixed(1) : Math.round(mb).toString();
+  }
+  const t = (key, p) => window.I18N.t(key, p);
+
+  let shareBusy = false;
+
+  function hideSharePanels() {
+    ['share-progress', 'share-error', 'share-summary', 'share-manage'].forEach((id) => {
+      const el = $(id);
+      if (el) el.classList.add('hidden');
+    });
+  }
+  function setShareStatus(text, percent) {
+    const s = $('share-status-text');
+    if (s && text != null) s.textContent = text;
+    const fill = $('share-progress-fill');
+    if (fill) fill.style.width = (percent == null ? 100 : percent) + '%';
+    const wrap = $('share-progress');
+    if (wrap) wrap.classList.remove('hidden');
+  }
+  function showShareScreen() {
+    window.AUDIO.unlock();
+    $('creator-screen').classList.add('hidden');
+    $('worlds-screen').classList.add('hidden');
+    $('settings-screen').classList.add('hidden');
+    $('share-screen').classList.remove('hidden');
+    window.UI.hideAllScreens();
+    window.I18N.applyStatic();
+  }
+
+  // 把文本复制进剪贴板（带按钮反馈）
+  async function copyText(text, btn, okText) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const input = $('share-url');
+        input.focus();
+        input.select();
+        document.execCommand('copy');
+      }
+      if (btn) {
+        const old = btn.textContent;
+        btn.textContent = okText || t('share.copied');
+        setTimeout(() => { btn.textContent = old; }, 1600);
+      }
+      return true;
+    } catch (e) {
+      const input = $('share-url');
+      input.focus();
+      input.select();
+      return false;
+    }
+  }
+
+  /* ---------- 分享对话框：生成（云端 / 文字兜底） ---------- */
+  async function showShareDialog(worldId) {
+    const w = window.StoryStore.getWorld(worldId);
+    if (!w || shareBusy) return;
+    const canCloud = window.ShareCloud.mode() !== 'legacy';
+    // 清空并进入“生成”界面
+    hideSharePanels();
+    $('share-manage').classList.add('hidden');
+    $('share-url').value = '';
+    $('share-url').classList.remove('hidden');
+    const sum = $('share-summary');
+    if (sum) { sum.textContent = ''; sum.classList.add('hidden'); }
+    const err = $('share-error');
+    if (err) { err.textContent = ''; err.classList.add('hidden'); }
+    $('btn-share-copy').disabled = true;
+    const sys = $('btn-share-system');
+    if (sys) sys.classList.toggle('hidden', !navigator.share);
+    const fb = $('btn-share-fallback');
+    if (fb) fb.classList.add('hidden');
+    const desc = $('share-desc');
+    if (desc) {
+      desc.textContent = canCloud ? t('share.desc') : t('share.descLegacy');
+    }
+    showShareScreen();
+
+    shareBusy = true;
+    try {
+      let url = '';
+      if (canCloud) {
+        // 云端完整分享：照片/视频/BGM 上传 + 云数据库发布
+        const r = await window.ShareCloud.createShare(w, (p) => {
+          if (!p) return;
+          if (p.stage === 'upload') {
+            const percent = p.totalBytes ? Math.round((p.doneBytes * 100) / p.totalBytes) : 0;
+            setShareStatus(
+              t('share.uploadStep', {
+                index: p.index + 1,
+                count: p.count,
+                done: fmtMB(p.doneBytes),
+                total: fmtMB(p.totalBytes),
+              }),
+              percent,
+            );
+          } else if (p.stage === 'finalize') {
+            setShareStatus(t('share.finalize'));
+          }
+        });
+        url = r.url;
+        // 记录到本机（供“已分享”管理/撤回）
+        const recs = readShareRecords();
+        recs.unshift({
+          shareId: r.shareId,
+          worldId,
+          title: w.title || t('title.mine'),
+          url,
+          createdAt: Date.now(),
+          nImages: r.nImages,
+          nVideos: r.nVideos,
+          hasBgm: r.hasBgm,
+          totalBytes: r.totalBytes,
+        });
+        writeShareRecords(recs.slice(0, 50));
+        const parts = [];
+        if (r.nImages) parts.push(t('share.statsImg', { n: r.nImages }));
+        if (r.nVideos) parts.push(t('share.statsVid', { n: r.nVideos }));
+        if (r.hasBgm) parts.push(t('share.statsBgm'));
+        parts.push(t('share.statsMB', { mb: fmtMB(r.totalBytes) }));
+        if (sum) {
+          sum.textContent = t('share.doneCloud', { stats: parts.join(' · ') });
+          sum.classList.remove('hidden');
+        }
+      } else {
+        // 纯本地/未启用云端：退回文字版链接（老行为）
+        const payload = await window.ShareCode.encode(w);
+        url = window.ShareCode.makeShareUrl(payload);
+        if (sum) {
+          sum.textContent = t('share.legacyNote');
+          sum.classList.remove('hidden');
+        }
+      }
+      $('share-url').value = url;
+      $('btn-share-copy').disabled = false;
+      const sw = $('share-progress');
+      if (sw) sw.classList.add('hidden');
+    } catch (e) {
+      // 出错：显示原因，并给出「改文字版」兜底
+      const errEl = $('share-error');
+      if (errEl) {
+        errEl.textContent = shareErrorText(e);
+        errEl.classList.remove('hidden');
+      }
+      const fb = $('btn-share-fallback');
+      if (fb) {
+        fb.classList.remove('hidden');
+        fb.onclick = async () => {
+          try {
+            const payload = await window.ShareCode.encode(w);
+            const url = window.ShareCode.makeShareUrl(payload);
+            $('share-url').value = url;
+            $('btn-share-copy').disabled = false;
+            hideSharePanels();
+            const sum2 = $('share-summary');
+            if (sum2) { sum2.textContent = t('share.legacyNote'); sum2.classList.remove('hidden'); }
+          } catch (e2) {
+            if ($('share-error')) {
+              $('share-error').textContent = t('share.errUnknown', { msg: e2.message });
+            }
+          }
+        };
+      }
+      const sw = $('share-progress');
+      if (sw) sw.classList.add('hidden');
+    } finally {
+      shareBusy = false;
+    }
+  }
+
+  function shareErrorText(e) {
+    const code = window.ShareCloud.errorCode(e);
+    if (code === 'limit' || code === 'limitTotal') {
+      try {
+        const o = JSON.parse(e.message);
+        if (code === 'limit') {
+          const kindLabel =
+            o.kind === 'image' ? t('share.kind.img')
+            : o.kind === 'video' ? t('share.kind.vid')
+            : t('share.kind.bgm');
+          return t('share.err.limit', { kind: kindLabel, mem: o.memTitle || '', max: o.maxMB });
+        }
+        return t('share.err.limitTotal', { total: o.sizeMB, max: o.maxMB });
+      } catch (e2) { /* fallthrough */ }
+    }
+    switch (code) {
+      case 'auth': return t('share.err.auth');
+      case 'authz':
+      case 'EXCEED_AUTHORITY':
+      case 'PERMISSION_DENIED':
+        return t('share.err.authz');
+      case 'sdk': return t('share.err.sdk');
+      case 'net': return t('share.err.net');
+      case 'upload': return t('share.err.upload', { msg: (e && e.message) || '' });
+      case 'legacy': return t('share.descLegacy');
+      default:
+        return t('share.errUnknown', { msg: (e && e.message) || code });
+    }
+  }
+
   function closeShareDialog() {
     $('share-screen').classList.add('hidden');
     $('worlds-screen').classList.remove('hidden');
@@ -859,28 +1078,82 @@ window.Creator = (() => {
   }
   async function copyShareUrl() {
     const input = $('share-url');
-    const url = input.value;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(url);
-      } else {
-        input.focus();
-        input.select();
-        document.execCommand('copy');
-      }
-      const b = $('btn-share-copy');
-      const old = b.textContent;
-      b.textContent = window.I18N.t('share.copied');
-      setTimeout(() => { b.textContent = old; }, 1600);
-    } catch (e) {
-      input.focus();
-      input.select();
-    }
+    await copyText(input.value, $('btn-share-copy'));
   }
   function systemShare() {
     const url = $('share-url').value;
     if (navigator.share) {
       navigator.share({ title: 'your life story', url }).catch(() => {});
+    }
+  }
+
+  /* ---------- 已分享管理（复制 / 撤回） ---------- */
+  function showShareManage(worldId) {
+    if (shareBusy) return;
+    hideSharePanels();
+    $('share-url').classList.add('hidden');
+    $('btn-share-copy').disabled = true;
+    const sys = $('btn-share-system');
+    if (sys) sys.classList.add('hidden');
+    const fb = $('btn-share-fallback');
+    if (fb) fb.classList.add('hidden');
+    const desc = $('share-desc');
+    if (desc) desc.textContent = t('share.manageDesc');
+    showShareScreen();
+    renderShareManage(worldId);
+  }
+
+  function renderShareManage(worldId) {
+    const recs = recordsOfWorld(worldId);
+    const wrap = $('share-manage');
+    const list = $('share-manage-list');
+    const empty = $('share-manage-empty');
+    wrap.classList.remove('hidden');
+    list.innerHTML = '';
+    if (empty) empty.classList.toggle('hidden', recs.length > 0);
+    const now = Date.now();
+    for (const r of recs) {
+      const row = document.createElement('div');
+      row.className = 'share-record';
+      const date = new Date(r.createdAt || now);
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const stats = [];
+      if (r.nImages) stats.push(t('share.statsImg', { n: r.nImages }));
+      if (r.nVideos) stats.push(t('share.statsVid', { n: r.nVideos }));
+      if (r.hasBgm) stats.push(t('share.statsBgm'));
+      stats.push(t('share.statsMB', { mb: fmtMB(r.totalBytes || 0) }));
+      const titleEl = document.createElement('div');
+      titleEl.className = 'share-record-title';
+      titleEl.textContent = `${r.title || ''} · ${dateStr}`;
+      const metaEl = document.createElement('div');
+      metaEl.className = 'share-record-meta';
+      metaEl.textContent = stats.join(' · ');
+      const acts = document.createElement('div');
+      acts.className = 'share-record-actions';
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'btn-ghost small';
+      copyBtn.textContent = t('share.copy');
+      copyBtn.addEventListener('click', () => copyText(r.url, copyBtn));
+      const revokeBtn = document.createElement('button');
+      revokeBtn.type = 'button';
+      revokeBtn.className = 'btn-ghost small danger';
+      revokeBtn.textContent = t('share.revoke');
+      revokeBtn.addEventListener('click', async () => {
+        if (!confirm(t('share.revokeConfirm'))) return;
+        try {
+          await window.ShareCloud.revokeShare(r.shareId);
+          const list2 = readShareRecords().filter((x) => x.shareId !== r.shareId);
+          writeShareRecords(list2);
+          window.UI.toast(t('share.revoked'));
+          renderShareManage(worldId);
+        } catch (e) {
+          window.UI.toast(t('share.revokeErr', { msg: (e && e.message) || '' }));
+        }
+      });
+      acts.append(copyBtn, revokeBtn);
+      row.append(titleEl, metaEl, acts);
+      list.appendChild(row);
     }
   }
 

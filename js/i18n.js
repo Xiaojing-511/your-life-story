@@ -159,7 +159,7 @@ window.I18N = (() => {
     "worlds.new": "＋ 新建我的故事",
     "worlds.import": "📥 导入",
     "worlds.empty": "还没有自己的故事，点「＋ 新建我的故事」开始。",
-    "worlds.builtin": "🌲 林间拾忆 · 内置旅程",
+    "worlds.builtin": "your life story",
     "worlds.builtinMeta": "{n} 段回忆 · 默认",
     "worlds.gender": "角色",
     "worlds.meta": "{n} 段回忆 · {origin} · {date}",
@@ -190,15 +190,51 @@ window.I18N = (() => {
     /* ---- 分享 / 只读体验 ---- */
     "toast.sharedStart": "这是「{title}」的故事，分享给你。慢慢走。",
     "viewer.note": "来自「{title}」的分享 · 仅供体验观看",
+    "viewer.notFound": "分享不存在或已被撤回",
     "worlds.share": "🔗 分享",
+    "worlds.shared": "🔗 已分享 {n}",
     "worlds.export": "📤 导出",
     "share.title": "分享这个故事",
     "share.desc":
-      "对方打开链接后只会看到「开始」和音量，仅可体验观看，无法编辑。照片/视频不会包含在链接里；故事的角色（👦 男 / 👧 女）会随链接一起分享。",
+      "对方打开链接即可完整体验：同样的路与回忆，照片 / 视频 / 专属音乐全部可见（正在上传媒体，请保持网络通畅）。仅可观看，无法编辑。",
+    "share.descLegacy":
+      "当前环境未启用云端分享，会生成纯文字版链接（不含照片/视频）。配置方法见 cloud/README.md。",
+    "share.uploadStep": "正在上传 {index}/{count} · {done}MB / {total}MB",
+    "share.finalize": "正在发布……",
+    "share.doneCloud": "已生成完整分享链接：{stats}",
+    "share.statsImg": "照片 {n} 张",
+    "share.statsVid": "视频 {n} 段",
+    "share.statsBgm": "专属音乐",
+    "share.statsMB": "共 {mb}MB",
+    "share.legacyNote": "文字版链接（不含照片/视频），仅用于没有云端时的兜底。",
     "share.copy": "复制链接",
     "share.copied": "已复制 ✓",
     "share.system": "系统分享",
-    "share.fail": "生成分享链接失败：{msg}",
+    "share.textOnly": "仅生成文字版",
+    "share.manageDesc":
+      "每个链接都指向云端的独立快照（分享那一刻的内容，之后修改本地故事不影响它）：可复制再发，也可随时撤回，撤回后链接立即失效。",
+    "share.manageTitle": "已分享的链接",
+    "share.manageEmpty":
+      "还没有云端分享记录 —— 点世界卡「🔗 分享」生成后，这里可随时复制 / 撤回。",
+    "share.revoke": "撤回",
+    "share.revokeConfirm": "撤回后该链接将无法再访问，确定撤回？",
+    "share.revoked": "已撤回分享 ✓",
+    "share.revokeErr": "撤回失败：{msg}",
+    "share.kind.img": "照片",
+    "share.kind.vid": "视频",
+    "share.kind.bgm": "背景音乐",
+    "share.err.limit":
+      "「{mem}」的{kind}超过单文件上限（{max}MB）。请回编辑页换小一点的文件再分享。",
+    "share.err.limitTotal":
+      "本次分享总大小 {total}MB，超过上限 {max}MB。请删减部分照片/视频。",
+    "share.err.auth":
+      "云端未就绪：请先在 CloudBase 控制台开启「匿名登录」，再点一次分享（步骤见 cloud/README.md）。",
+    "share.err.authz":
+      "云端拒绝了这次调用：请在 云开发控制台 → 云函数 → 「权限控制」里，为 shareApi 配置 {\"invoke\": \"auth != null\"}（允许匿名登录用户调用），并确认 shareApi 是普通云函数（不是 HTTP 云函数）。详见 cloud/README.md。",
+    "share.err.sdk": "SDK 加载失败：请确认已把 js/vendor/ 目录一起部署到网站。",
+    "share.err.net": "网络错误，请检查网络后重试。",
+    "share.err.upload": "上传失败：{msg}",
+    "share.errUnknown": "分享失败：{msg}",
   };
 
   const en = {
@@ -354,7 +390,7 @@ window.I18N = (() => {
     "worlds.new": "＋ New Story",
     "worlds.import": "📥 Import",
     "worlds.empty": 'No stories yet — tap "＋ New Story" to begin.',
-    "worlds.builtin": "🌲 The Forest Journey · Built-in",
+    "worlds.builtin": "your life story",
     "worlds.builtinMeta": "{n} memories · Default",
     "worlds.gender": "Character",
     "worlds.meta": "{n} memories · {origin} · {date}",
@@ -387,15 +423,53 @@ window.I18N = (() => {
     "toast.sharedStart":
       'This is the story of "{title}", shared with you. Take your time.',
     "viewer.note": 'Shared by "{title}" · View-only',
+    "viewer.notFound": "This share does not exist or has been revoked",
     "worlds.share": "🔗 Share",
+    "worlds.shared": "🔗 {n} shared",
     "worlds.export": "📤 Export",
     "share.title": "Share This Story",
     "share.desc":
-      "Whoever opens the link will only see Start and volume — they can experience the story but not edit it. Photos/videos are not included in the link; the story's character (👦/👧) travels with it.",
+      "Whoever opens the link gets the full experience: the same path and memories, with photos / videos / music intact (media is being uploaded now — keep your connection stable). View-only, cannot be edited.",
+    "share.descLegacy":
+      "Cloud sharing is not enabled in this environment, so a text-only link (no photos/videos) will be created. See cloud/README.md to enable it.",
+    "share.uploadStep": "Uploading {index}/{count} · {done}MB / {total}MB",
+    "share.finalize": "Publishing…",
+    "share.doneCloud": "Full share link ready: {stats}",
+    "share.statsImg": "{n} photo(s)",
+    "share.statsVid": "{n} video(s)",
+    "share.statsBgm": "music",
+    "share.statsMB": "{mb}MB total",
+    "share.legacyNote":
+      "Text-only link (no photos/videos) — fallback when the cloud is unavailable.",
     "share.copy": "Copy Link",
     "share.copied": "Copied ✓",
     "share.system": "Share…",
-    "share.fail": "Failed to create share link: {msg}",
+    "share.textOnly": "Text-only link",
+    "share.manageDesc":
+      "Each link points to an independent cloud snapshot (frozen at share time — later local edits don't affect it): copy to re-share, or revoke anytime; a revoked link stops working immediately.",
+    "share.manageTitle": "Shared Links",
+    "share.manageEmpty":
+      "No cloud shares yet — tap “Share” on a story card, then manage/copy/revoke it here.",
+    "share.revoke": "Revoke",
+    "share.revokeConfirm":
+      "Revoking makes this link permanently inaccessible. Revoke?",
+    "share.revoked": "Share revoked ✓",
+    "share.revokeErr": "Failed to revoke: {msg}",
+    "share.kind.img": "photo",
+    "share.kind.vid": "video",
+    "share.kind.bgm": "music",
+    "share.err.limit":
+      "{kind} in “{mem}” exceeds the per-file limit ({max}MB). Please use a smaller file in the editor and share again.",
+    "share.err.limitTotal":
+      "This share is {total}MB total, above the {max}MB limit. Remove some photos/videos.",
+    "share.err.auth":
+      "Cloud not ready: enable “Anonymous login” in the CloudBase console first, then share again (see cloud/README.md).",
+    "share.err.authz":
+      "The cloud rejected this call: in the CloudBase console go to Functions → “Permissions”, give shareApi {\"invoke\": \"auth != null\"} (allow anonymous users), and make sure shareApi is a normal (non-HTTP) function. See cloud/README.md.",
+    "share.err.sdk": "SDK failed to load — make sure the js/vendor/ folder is deployed.",
+    "share.err.net": "Network error — check your connection and retry.",
+    "share.err.upload": "Upload failed: {msg}",
+    "share.errUnknown": "Sharing failed: {msg}",
   };
 
   function lang() {

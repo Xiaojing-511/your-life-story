@@ -43,7 +43,7 @@ window.AUDIO = (() => {
       applyGain();
       master.connect(ctx.destination);
       buildWind();
-      if (customBgmBlob) startCustomBGM(customBgmBlob);
+      if (customBgmSrc) startCustomBGM(customBgmSrc);
       else startBGM();
     } catch (e) {
       ctx = null;
@@ -188,33 +188,45 @@ window.AUDIO = (() => {
   }
 
   /* ============================================================
-   * 自定义背景音乐（用户上传，经主音量/静音统一控制）
+   * 自定义背景音乐（用户上传 / 云端分享 URL，经主音量/静音统一控制）
+   * setCustomBGM(src)：src 可以是本地 Blob，也可以是远程 URL 字符串
    * ============================================================ */
-  let customBgmBlob = null;
+  let customBgmSrc = null; // Blob 或字符串 URL
   let customEl = null; // HTMLAudioElement
 
-  function setCustomBGM(blob) {
-    customBgmBlob = blob;
+  function setCustomBGM(src) {
+    customBgmSrc = src || null;
     if (!ctx) return; // 尚未解锁，unlock() 时会自动接上
     stopCustomBGM();
-    if (blob) {
+    if (src) {
       stopBGM();
-      startCustomBGM(blob);
+      startCustomBGM(src);
     } else {
       startBGM();
     }
   }
   function hasCustomBGM() {
-    return !!customBgmBlob;
+    return !!customBgmSrc;
   }
-  function startCustomBGM(blob) {
+  function startCustomBGM(src) {
     if (!ctx) return;
-    const url = URL.createObjectURL(blob);
+    if (typeof src === 'string') {
+      // 远程 URL（云端分享的 BGM）：跨域资源不能接入 WebAudio 的
+      // MediaElementSource（会静音/报错），改用原生 Audio 元素，自己跟随音量/静音
+      const el = new Audio(src);
+      el.loop = true;
+      el._remote = true;
+      el.volume = muted ? 0 : volume;
+      el.play().catch(() => {});
+      customEl = el;
+      return;
+    }
+    const url = URL.createObjectURL(src);
     const el = new Audio(url);
     el.loop = true;
     el.volume = 1;
-    const src = ctx.createMediaElementSource(el);
-    src.connect(master); // 音量/静音跟随 master
+    const audioSrc = ctx.createMediaElementSource(el);
+    audioSrc.connect(master); // 音量/静音跟随 master
     el.play().catch(() => {});
     customEl = el;
   }
@@ -223,6 +235,12 @@ window.AUDIO = (() => {
       customEl.pause();
       customEl.src = '';
       customEl = null;
+    }
+  }
+  // 远程 BGM 元素跟随全局音量/静音
+  function applyRemoteVolume() {
+    if (customEl && customEl._remote) {
+      customEl.volume = muted ? 0 : volume;
     }
   }
   // 当前 BGM 状态（供 UI 与测试）
@@ -270,6 +288,7 @@ window.AUDIO = (() => {
     muted = m;
     try { localStorage.setItem('mls-muted', m ? '1' : '0'); } catch (e) { /* ignore */ }
     applyGain();
+    applyRemoteVolume();
   }
 
   function isMuted() { return muted; }
@@ -278,6 +297,7 @@ window.AUDIO = (() => {
     volume = Math.max(0, Math.min(1, v));
     try { localStorage.setItem('mls-volume', String(volume)); } catch (e) { /* ignore */ }
     applyGain();
+    applyRemoteVolume();
   }
 
   function getVolume() { return volume; }

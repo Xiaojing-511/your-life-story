@@ -136,22 +136,28 @@ window.UI = (() => {
   function showMemory(mem, idx, total, onClose) {
     onCloseMemory = onClose;
 
-    // 图标 / 配图
+    // 顶部圆形图标：始终显示 emoji（上传的照片不再顶替它，而是作为整卡背景）
     els.memoryArt.innerHTML = '';
     const color = mem.color || '#d4a24e';
     els.memoryArt.style.background =
       `radial-gradient(circle at 35% 30%, ${window.Utils.rgba(color, 0.45)}, ${window.Utils.rgba(color, 0.85)} 65%, rgba(0,0,0,0.35))`;
     els.memoryArt.style.boxShadow = `0 0 30px ${window.Utils.rgba(color, 0.55)}`;
+    const e = document.createElement('div');
+    e.className = 'art-emoji';
+    e.textContent = mem.emoji;
+    els.memoryArt.appendChild(e);
+
+    // 照片（可选）：铺满整张回忆卡作背景（叠加半透明深色渐变保证文字可读）
+    els.memoryCard.classList.toggle('has-photo-bg', !!mem.image);
     if (mem.image) {
-      const img = document.createElement('img');
-      img.src = mem.image;
-      img.alt = mem.title;
-      els.memoryArt.appendChild(img);
+      els.memoryCard.style.backgroundImage =
+        `linear-gradient(rgba(8, 14, 10, 0.6), rgba(8, 14, 10, 0.84)), url('${mem.image}')`;
+      els.memoryCard.style.backgroundSize = 'cover';
+      els.memoryCard.style.backgroundPosition = 'center';
     } else {
-      const e = document.createElement('div');
-      e.className = 'art-emoji';
-      e.textContent = mem.emoji;
-      els.memoryArt.appendChild(e);
+      els.memoryCard.style.backgroundImage = '';
+      els.memoryCard.style.backgroundSize = '';
+      els.memoryCard.style.backgroundPosition = '';
     }
 
     // 内置故事支持中英文（textEn/titleEn）；自定义故事是用户内容，保持原样

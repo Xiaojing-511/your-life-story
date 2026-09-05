@@ -7,7 +7,8 @@
  * 每一项字段说明：
  *   id     唯一标识（不要与其他项重复）
  *   title  回忆标题
- *   x      物品放在小路上的位置（世界坐标，范围 0 ~ worldLength）
+ *   x      无需填写：回忆位置会按记忆段数自动排布（见文件底部 layout），
+ *          与「我的故事」的自定义故事同一套规则；想手动摆位置可改底部代码。
  *   emoji  物品图标（没有配图时在游戏中显示这个 emoji）
  *   color  光晕颜色（#rrggbb）
  *   image  可选：回忆配图路径，如 'assets/images/xxx.jpg'，不需要填 null
@@ -16,29 +17,26 @@
  *          不需要填 null。填了就会在回忆里出现视频播放器。
  *   text   回忆文案：字符串数组，每个元素是一段（打字机逐段显示）
  *
- * 想调整行走速度、小路长度等：改下面的 GAME_CONFIG。
+ * 想调整行走速度等：改下面的 GAME_CONFIG；小路总长与回忆位置由文件底部的
+ * 排布逻辑按记忆段数自动计算（与「我的故事」的自定义故事保持一致）。
  * ============================================================ */
 
 window.GAME_CONFIG = {
   viewW: 960, // 游戏逻辑分辨率宽（发布到 itch.io 时嵌入尺寸填这个）
   viewH: 540, // 游戏逻辑分辨率高
-  worldLength: 8000, // 小路总长度（世界坐标，像素）
+  worldLength: 8000, // 小路总长度基准（会被底部 layout 按记忆段数重算覆盖）
   walkSpeed: 180, // 按住空格 / 点击时的行走速度（像素/秒）
   pickupRadius: 46, // 拾取判定半径（玩家与物品距离小于该值即拾取）
 };
-
-const ORIGIN_X = 500;
-const STEP_WIDTH = 400;
 
 window.MEMORIES = [
   {
     id: "pocket-watch",
     title: "旧怀表",
     titleEn: "The Old Pocket Watch",
-    x: ORIGIN_X,
     emoji: "🕰️",
     color: "#d4a24e",
-    image: null,
+    image: "assets/image/1.png", // 按序号 1 配置
     video: null,
     text: [
       "你拾起一只旧怀表。表盘上的秒针早已停住，停在某个下午的三点十七分。",
@@ -57,10 +55,9 @@ window.MEMORIES = [
     id: "faded-photo",
     title: "泛黄的照片",
     titleEn: "The Faded Photo",
-    x: ORIGIN_X + STEP_WIDTH * 1,
     emoji: "🖼️",
     color: "#e0b77a",
-    image: null,
+    image: "assets/image/2.png", // 按序号 2 配置
     video: null,
     text: [
       "一张边角卷起的照片。照片上的人笑得很用力，露出八颗牙齿，像是要把那一刻永远留在脸上。",
@@ -77,10 +74,9 @@ window.MEMORIES = [
     id: "broken-kite",
     title: "断线的风筝",
     titleEn: "The Kite With a Broken String",
-    x: ORIGIN_X + STEP_WIDTH * 2,
     emoji: "🪁",
     color: "#6fc3df",
-    image: null,
+    image: "assets/image/3.png", // 按序号 3 配置
     video: null,
     text: [
       "一只断了线的风筝，卡在灌木丛里。你想起童年那个下午，你在田埂上拉着风筝疯跑，风很大，线很细。",
@@ -97,10 +93,9 @@ window.MEMORIES = [
     id: "concert-ticket",
     title: "两张票根",
     titleEn: "Two Ticket Stubs",
-    x: ORIGIN_X + STEP_WIDTH * 3,
     emoji: "🎫",
     color: "#e07b54",
-    image: null,
+    image: "assets/image/4.png", // 按序号 4 配置
     video: null,
     text: [
       "两张并排的票根，日期是很多年前的冬天。那场演唱会你们约了很久，后来还是没能一起去。",
@@ -117,11 +112,11 @@ window.MEMORIES = [
     id: "old-notebook",
     title: "旧笔记本",
     titleEn: "The Old Notebook",
-    x: ORIGIN_X + STEP_WIDTH * 4,
     emoji: "📓",
     color: "#8aa6c9",
     image: null,
-    video: null,
+    video: { url: "assets/video/5.mp4" }, // 按序号 5 配置
+
     text: [
       "一本封面磨破的笔记本。第一页用蓝色钢笔写着：「要成为很厉害的大人。」",
       "你翻开，里面是十几岁的你写下的计划和愿望——有的实现了，有的改了，有的已经想不起来为什么重要。",
@@ -134,3 +129,23 @@ window.MEMORIES = [
     ],
   },
 ];
+
+/* ============================================================
+ * 内置旅程的回忆位置与路长：和「我的故事」的自定义故事完全同一套规则
+ * （与 js/store.js 的 StoryStore.layoutWorld 一致）：
+ *  - 位置从 400 起、按记忆段数均匀排布（段距 = 7200/段数，夹在 700~950）
+ *  - 最后一幕之后只留约 3 秒的「结尾步行」，读完最后一段自动走完收尾，
+ *    不会在最后一段后面拖一条又长又空的马路
+ * 想手动指定每件物品的位置/路长：改回显式 x，并直接设置 worldLength。
+ * ============================================================ */
+(function layoutBuiltin() {
+  const n = Math.max(0, window.MEMORIES.length);
+  const speed = (window.GAME_CONFIG && window.GAME_CONFIG.walkSpeed) || 180;
+  const step = Math.min(950, Math.max(700, Math.floor(7200 / Math.max(1, n))));
+  window.MEMORIES.forEach((m, i) => {
+    m.x = 400 + i * step;
+  });
+  const lastX = n > 0 ? 400 + (n - 1) * step : 0;
+  const tail = Math.round(speed * 3); // 最后一幕后的结尾步行（约 3 秒）
+  window.GAME_CONFIG.worldLength = Math.max(1600, lastX + tail + 60);
+})();

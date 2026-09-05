@@ -1,14 +1,23 @@
 /* ============================================================
- * 《林间拾忆》故事分享（纯静态，无后端）
+ * 《林间拾忆》故事分享
  *
- * 方案：把故事（标题 + 各段回忆文字/图标/颜色）压缩编码进 URL hash
- *   （#share=…），接收方打开链接即进入「只读体验模式」。
- *  - 压缩：原生 CompressionStream('deflate') + base64url（中文压缩后很小）
- *  - 降级：不支持 CompressionStream 时直接 base64url（仍可工作，只是更长）
- *  - 照片/视频是二进制，体积太大，不放进分享链接（UI 有说明）
+ * 两代分享格式（用 #share= 负载前缀区分）：
+ *  - v1（旧/纯文字，兼容保留）：s3. 之外的内容 = 标题+各段回忆
+ *    文字/图标/颜色压缩进 URL（#share=<base64>）。照片/视频不带。
+ *  - v2（云快照，?share= 与 #share= 同时带 s3.<shareId>）：文字/布局存云数据库，
+ *    照片/视频/BGM 存云存储，接收方完整还原 —— 见 share-cloud.js。
+ *    本文件只负责识别与旧版编解码。
+ * 压缩：原生 CompressionStream('deflate') + base64url
+ * 降级：不支持 CompressionStream 时直接 base64url（仍可工作）
  * ============================================================ */
 window.ShareCode = (() => {
   'use strict';
+
+  // 云端快照前缀（与 ShareCloud 一致），decode 见到它应走云端拉取
+  const CLOUD_PREFIX = 's3.';
+  function isCloudPayload(payload) {
+    return typeof payload === 'string' && payload.indexOf(CLOUD_PREFIX) === 0;
+  }
 
   /* ---------- base64url ---------- */
   function toBase64Url(bytes) {
@@ -77,6 +86,10 @@ window.ShareCode = (() => {
   }
 
   async function decode(payload) {
+    if (isCloudPayload(payload)) {
+      // v2 云快照：不在这里解（文本解码器解不动），由调用方走 ShareCloud
+      throw new Error('cloud-share');
+    }
     const bytes = fromBase64Url(payload);
     const inflated = await inflate(bytes);
     const json = new TextDecoder().decode(inflated);
@@ -103,11 +116,28 @@ window.ShareCode = (() => {
     };
   }
 
-  // 生成可分享的完整链接：优先用部署配置的地址（国内访问更快），否则用当前页面地址
+  // 生成可分享的完整链接：优先用当前页面的真实域名（部署的站），
+  // 再退回 SITE_CONFIG.shareBase；纯文字版与云端链接都保证域名可达。
+  // CloudBase 默认测试域名首次访问会先弹「风险提醒」中间页，点“确定访问”后
+  // 会丢掉 URL hash 但保留 query——所以云端短负载（s3.<id>，不含内容）在
+  // query 里也带一份：接收方无痕/首次打开经中间页跳转后仍能进入分享的故事。
+  // 纯文字负载是完整故事（可能几 KB 且属于隐私内容），只放 hash，不进 query。
   function makeShareUrl(payload) {
-    const cfg = (window.SITE_CONFIG && window.SITE_CONFIG.shareBase) || '';
-    const base = cfg ? cfg.replace(/\/+$/, '') : location.href.split('#')[0];
-    return base + '#share=' + payload;
+    let base = '';
+    try {
+      if (location && location.origin && /^https?:$/.test(location.protocol)) {
+        base = location.origin;
+      }
+    } catch (e) { /* ignore */ }
+    if (!base) {
+      const cfg = (window.SITE_CONFIG && window.SITE_CONFIG.shareBase) || '';
+      base = cfg ? cfg.replace(/\/+$/, '') : location.href.split('#')[0];
+    }
+    base = base.replace(/\/+$/, '');
+    const q = isCloudPayload(payload)
+      ? (base.indexOf('?') >= 0 ? '&share=' : '?share=') + payload
+      : '';
+    return base + q + '#share=' + payload;
   }
 
   // 从 location.hash 里提取分享负载
@@ -116,5 +146,23 @@ window.ShareCode = (() => {
     return m ? m[1] : null;
   }
 
-  return { encode, decode, makeShareUrl, extractFromHash, buildPayload };
+  // 从当前页面地址里提取分享负载：先看 #share=（常规/同页 hash 切换），
+  // 再看 ?share=（云端“中间页”跳转会丢 hash，query 里带的那份在这里找回）
+  function extractFromLocation(loc) {
+    const h = extractFromHash((loc && (loc.hash || '')) || '');
+    if (h) return h;
+    const q = loc && loc.search;
+    if (q) {
+      const m = /[?&]share=([^&]+)/.exec(q);
+      if (m) {
+        try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; }
+      }
+    }
+    return null;
+  }
+
+  return {
+    encode, decode, makeShareUrl, extractFromHash, extractFromLocation, buildPayload,
+    isCloudPayload,
+  };
 })();

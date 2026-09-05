@@ -1,0 +1,9 @@
+{
+  "name": "shareApi",
+  "version": "1.0.0",
+  "description": "林间拾忆 云端分享：finalize / get / revoke",
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/node-sdk": "^2.4.3"
+  }
+}

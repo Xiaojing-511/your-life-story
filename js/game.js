@@ -318,7 +318,7 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
     clickTarget = null;
     state = "memory";
     // 最后一段回忆看完后：若剩余路不长（按记忆段数设计的结尾步行），
-    // 自动走完并触发结尾；内置旅程的漫漫长路则不自动走
+    // 自动走完并触发结尾（内置旅程同样按记忆段数排布，行为一致）
     const endX = LENGTH - 140;
     const autoWalk =
       !replay && collected.size === MEMORIES.length && endX - playerX < 1600;
@@ -1102,14 +1102,36 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
 (async () => {
   const stage = document.getElementById("stage");
 
-  // 分享链接（#share=…）→ 只读体验模式：仅 Start + 音量，不能编辑
-  const sharePayload = window.ShareCode.extractFromHash(location.hash);
+  // 分享链接（#share=… 或 ?share=…）→ 只读体验模式：仅 Start + 音量，不能编辑
+  // （?share= 用于 CloudBase 默认域名首次访问的「风险提醒」中间页：点“确定访问”
+  // 会丢 hash 但保留 query，这里能从 query 找回分享，避免落入默认故事）
+  const sharePayload = window.ShareCode.extractFromLocation(location);
   if (sharePayload) {
     let shared = null;
-    try {
-      shared = await window.ShareCode.decode(sharePayload);
-    } catch (e) {
-      console.warn("分享数据解析失败", e);
+    let sharedBgmUrl = null;
+    if (window.ShareCode.isCloudPayload(sharePayload)) {
+      // v2 云端快照（带照片/视频/BGM）：从云数据库+云存储完整还原
+      const shareId = window.ShareCloud.shareIdFromHash(sharePayload);
+      if (shareId) {
+        try {
+          const r = await window.ShareCloud.getShareWorld(shareId);
+          shared = r.world;
+          sharedBgmUrl = r.bgmUrl;
+        } catch (e) {
+          console.warn("云端分享拉取失败", e);
+          const note = document.getElementById("shared-note");
+          if (note) {
+            note.textContent = window.I18N.t("viewer.notFound");
+          }
+        }
+      }
+    } else {
+      // v1 纯文字分享（旧链接，兼容）
+      try {
+        shared = await window.ShareCode.decode(sharePayload);
+      } catch (e) {
+        console.warn("分享数据解析失败", e);
+      }
     }
     if (shared && Array.isArray(shared.memories) && shared.memories.length) {
       // 分享负载自带原故事的完整布局（回忆位置 + 路长）时直接用，
@@ -1131,6 +1153,7 @@ window.GameBoot = (CFG, MEMORIES, worldId, gender) => {
         });
       }
       window.UI.setStartTitle(shared.title || "");
+      if (sharedBgmUrl) window.AUDIO.setCustomBGM(sharedBgmUrl);
       window.GameBoot(config, shared.memories, "shared", shared.gender || "male");
       return;
     }

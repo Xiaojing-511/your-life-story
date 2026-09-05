@@ -209,6 +209,13 @@ body {
 #memory-video { margin: 8px auto 4px; }
 #memory-video video { width: 100%; max-height: 300px; border-radius: 12px; background: #000; }
 
+/* 上传的照片铺满整卡背景时：给文字加投影，浅色照片上也保持可读 */
+#memory-card.has-photo-bg #memory-title,
+#memory-card.has-photo-bg #memory-text p,
+#memory-card.has-photo-bg #memory-footer span {
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
+}
+
 #memory-footer { margin-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 #memory-footer span { font-size: 13px; color: rgba(242, 234, 216, 0.6); }
 
@@ -770,3 +777,62 @@ body.shared-viewer .shared-note { display: block; }
   outline: none;
   word-break: break-all;
 }
+
+/* ---------- 分享：云端上传进度 / 错误 / 摘要 / 已分享管理 ---------- */
+.share-progress { margin-top: 14px; }
+.share-progress-bar {
+  height: 8px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.share-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e8b45a, #f7d98c);
+  transition: width 0.2s linear;
+}
+#share-status-text { margin-top: 8px; }
+.share-error {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #f0a08a;
+  background: rgba(240, 120, 90, 0.1);
+  border: 1px solid rgba(240, 120, 90, 0.3);
+  border-radius: 10px;
+  white-space: pre-wrap;
+}
+.share-summary { margin-top: 10px; }
+
+.creator-title-sm {
+  font-size: 15px;
+  margin: 18px 0 6px;
+  color: #ffe3a1;
+}
+.share-record {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 10px;
+}
+.share-record-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffe3a1;
+}
+.share-record-meta {
+  font-size: 12px;
+  color: rgba(242, 234, 216, 0.55);
+  margin: 3px 0 8px;
+}
+.share-record-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-ghost.small.danger { color: #f0a08a; border-color: rgba(240, 120, 90, 0.4); }
