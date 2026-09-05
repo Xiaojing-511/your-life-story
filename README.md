@@ -4,6 +4,15 @@
 
 纯静态、零依赖：一个 HTML 游戏，双击就能玩，改一处配置文件就能加新内容。
 
+## 🕹️ 在线试玩（快速打开玩）
+
+不想搭环境？上面两个地址打开即玩（无需安装、无需配置）：
+
+- 🏆 **主入口 · 腾讯云 CloudBase（推荐，免备案）**：<https://your-life-story-cloud1-7gjfr85i3b664708.webapps.tcloudbase.com> —— 静态托管在腾讯云，国内直连、自带 HTTPS；云端分享（照片 / 视频 / BGM 完整还原）也已随站点启用，开箱即用
+- 🗄️ **备用入口 · GitHub Pages**：<https://xiaojing-511.github.io/your-life-story/>
+
+> 试玩版与本地代码完全一致；想自己部署到 CloudBase（含云端分享所需的云函数/云存储）见 [`cloud/README.md`](cloud/README.md)。
+
 ## 运行
 
 直接双击 `index.html` 即可（无需服务器）。也可以起个本地服务：
